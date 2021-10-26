@@ -27,8 +27,25 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> ⚠ Note on layers!!! I'm working on this framework of development and learning more about DDD so bare with how poor the explanations are ⚠
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## App layer
+> Note this is all a work in progress
+
+The `/app` dir contains all logic/dependancies/code/sandwhiches that is entirely dedicated to application level code.
+
+### App structure
+
+- `/entities`
+  - Stores all top-level (global) entities
+  
+  
+- `/[LayerName]`
+  Layers are a subset of the application that may have its own entities however layers have usecases.  Which shouldn't exist on the top-level app layer
+
+  - `/entities`
+    - Like global entities but scoped to a specific layer
+  - `/useCases`
+    - Determines the possible actions a layer can perform
+
