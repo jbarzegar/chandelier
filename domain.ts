@@ -12,9 +12,10 @@
  *
  */
 
-interface Device { }
-
+interface Device {
+  id: string
+}
 
 export interface DeviceGateway {
-    devices: Device[]
+  devices: Device[]
 }

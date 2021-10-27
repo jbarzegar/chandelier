@@ -27,10 +27,10 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
 
-
 > ⚠ Note on layers!!! I'm working on this framework of development and learning more about DDD so bare with how poor the explanations are ⚠
 
 ## App layer
+
 > Note this is all a work in progress
 
 The `/app` dir contains all logic/dependancies/code/sandwhiches that is entirely dedicated to application level code.
@@ -39,13 +39,10 @@ The `/app` dir contains all logic/dependancies/code/sandwhiches that is entirely
 
 - `/entities`
   - Stores all top-level (global) entities
-  
-  
 - `/[LayerName]`
-  Layers are a subset of the application that may have its own entities however layers have usecases.  Which shouldn't exist on the top-level app layer
+  Layers are a subset of the application that may have its own entities however layers have usecases. Which shouldn't exist on the top-level app layer
 
   - `/entities`
     - Like global entities but scoped to a specific layer
   - `/useCases`
     - Determines the possible actions a layer can perform
-

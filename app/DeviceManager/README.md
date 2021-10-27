@@ -3,11 +3,13 @@
 This module is responsible for managing device state and interactions
 
 ## Depends upon
+
 - External libraies for light functionality
 
 ## Usecases
 
 - Determining supported features
+
   - rgb/color support
   - white balance support (?)
   - brightness support (?)
@@ -19,7 +21,6 @@ This module is responsible for managing device state and interactions
   - modify light brightness
   - modify white balance (if avaliable)
   - modify color (if avaliable)
-
 
 ## Entities
 

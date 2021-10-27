@@ -1,6 +1,6 @@
 # DeviceGateway
 
-A module that manages Devices. This gateway is responsible for managing, translating 
+A module that manages Devices. This gateway is responsible for managing, translating
 
 ## Depends upon
 
@@ -12,7 +12,6 @@ A module that manages Devices. This gateway is responsible for managing, transla
 
 - Manage `DeviceEvent` streams, translating into `DeviceManager` calls
 - Interacts with `DeviceData` to persist/read the state of given devices
-
 
 ## Entities
 
