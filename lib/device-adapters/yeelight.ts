@@ -1,77 +1,115 @@
 import {
-  Yeelight,
   Discover,
   IDevice,
+  DeviceStatus,
+  Yeelight,
   Color as LightColor,
 } from 'yeelight-awesome'
+import {
+  DeviceManagerEventEmitter,
+  IDeviceManager,
+  SetBrightnessParams,
+  SetColorParams,
+  SetPowerParams,
+} from 'domain/DeviceManager'
 import * as Color from 'color'
-import { pick } from 'lodash'
+import { ColorMode, Light, PowerMode } from 'domain/Light'
+import { DistributiveOmit } from 'types'
 
-import type { IDeviceManager } from 'domain/DeviceManager'
-import type { LightClientDisconnected } from 'domain/Light'
-
-const devicePickKeys = ['host', 'id', 'port', 'status'] as const
-
-export class YeelightDeviceManager
-  implements IDeviceManager<LightClientDisconnected>
-{
+export class YeelightDeviceManager implements IDeviceManager {
   private discoverer: Discover = new Discover({})
+  private lights: Map<string, Light> = new Map()
 
-  async discoverAllLights() {
+  async sync(): Promise<Light[]> {
     const devices = (await this.discoverer.start()).filter(Boolean)
-    const lights: LightClientDisconnected[] = devices.map(_ => this.mapLight(_))
+    // this.lights = devices.map(_ => this.mapLight(_))
+    for (let x of devices) {
+      this.lights.set(x.id, {
+        id: x.id,
+        colorMode: ColorMode.WHITE,
+        brightness: x.bright,
+        host: x.host,
+        port: x.port,
+        temperature: 555,
+        powerStatus:
+          x.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
+      })
+    }
+
+    const lights = Array.from(this.lights, ([, v]) => v)
 
     return lights
+  }
+
+  async setPower(params: SetPowerParams): Promise<Light> {
+    const light = await this.connectToLight(params.id)
+
+    await light.setPower(params.power === PowerMode.ON, params.transition, 1000)
+
+    return this.updateLight(params.id, { powerStatus: params.power })
+  }
+  async setColor({ id, ...params }: SetColorParams): Promise<Light> {
+    const light = await this.connectToLight(id)
+
+    switch (params.colorMode) {
+      case ColorMode.RGB:
+        break
+      case ColorMode.WHITE:
+        break
+      case ColorMode.HUE_SAT:
+        break
+    }
+
+    return this.updateLight(id, params)
+  }
+  setBrightness(params: SetBrightnessParams): Promise<Light> {
+    throw new Error('Method not implemented.')
   }
   cleanup() {
     return this.discoverer.destroy()
   }
 
-  private createConnect(device: IDevice): LightClientDisconnected['connect'] {
-    return async () => {
-      const light = new Yeelight({
-        lightId: device.id,
-        lightIp: device.host,
-        lightPort: device.port,
-      })
+  private async connectToLight(id: string): Promise<Yeelight> {
+    if (!this.lights.has(id))
+      throw new Error(`could not find light with id of ${id}`)
 
-      const l = await light.connect()
+    const x = this.lights.get(id)
 
-      return {
-        ...pick(device, [...devicePickKeys, 'name']),
-        getStatus: () => device.status,
-        setBrightness: async (intensity, options) => {
-          await l.setBright(intensity, options.transition, options.timing)
-        },
-        setColor: async (color, options) => {
-          await l.setRGB(this.toRGB(color), options.transition, options.timing)
-        },
-        setPower: async (status, opts) => {
-          try {
-            await l.setPower(status === 'on', opts.transition, opts.timing)
-          } catch (e) {
-            throw e
-          }
-        },
-        disconnect: async () => {
-          await l.disconnect()
-        },
-      }
-    }
+    const l = new Yeelight({
+      lightId: x?.id,
+      lightIp: x?.host,
+      lightPort: x?.port,
+    })
+    const light = await l.connect()
+
+    return light
   }
 
-  private mapLight(device: IDevice): LightClientDisconnected {
+  private mapLight(device: IDevice): Light {
     return {
-      ...pick(device, devicePickKeys),
       name: device.name || 'unknownYeelight',
-      connect: this.createConnect(device),
+      colorMode: ColorMode.WHITE,
+      temperature: 666,
+      brightness: device.bright,
+      host: device.host,
+      id: device.id,
+      port: device.port,
+      powerStatus:
+        device.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
     }
   }
 
-  private toRGB(hex: string): LightColor {
-    // @ts-expect-error
-    const rgb: [number, number, number] = new Color(hex).rgb().toJSON().color
+  private updateLight(
+    id: string,
+    p: Partial<DistributiveOmit<Record<keyof Light, Light[keyof Light]>, 'id'>>
+  ): Light {
+    if (!this.lights.has(id))
+      throw new Error(`could not find light with id ${id}`)
 
-    return new LightColor(...rgb)
+    const light = this.lights.get(id) as Light
+
+    this.lights.set(id, { ...light, ...(p as Light) })
+
+    return this.lights.get(id) as Light
   }
 }

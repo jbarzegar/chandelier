@@ -1,21 +1,46 @@
-export type PowerMode = 'off' | 'on'
-export type Transition = 'smooth' | 'sudden'
+export enum Transition {
+  SMOOTH = 'smooth',
+  SUDDEN = 'sudden',
+}
+
+export enum PowerMode {
+  ON = 'on',
+  OFF = 'off',
+}
+
+export enum ColorMode {
+  RGB = 1,
+  WHITE = 2,
+  HUE_SAT = 3,
+}
+
 export type MethodOptions = { timing: number; transition: Transition }
 
-export interface Light {
+type RGBRecord = Record<'r' | 'g' | 'b', number>
+type HueSatRecord = Record<'hue' | 'sat', number>
+
+interface BaseLight {
   id: string
   port: number
   host: string
   name?: string
-  status: PowerMode
+  powerStatus: PowerMode
+  brightness: number
 }
 
-export interface LightClientDisconnected extends Light {
+export type LightColorModes =
+  | { colorMode: ColorMode.RGB; color: RGBRecord }
+  | { colorMode: ColorMode.WHITE; temperature: number }
+  | { colorMode: ColorMode.HUE_SAT; color: HueSatRecord }
+
+export type Light = BaseLight & LightColorModes
+
+export type LightClientDisconnected = Light & {
   /** return value indicates successful connection */
   connect(): Promise<LightClientConnected>
 }
 
-export interface LightClientConnected extends Omit<Light, 'connect'> {
+export type LightClientConnected = Omit<Light, 'connect'> & {
   getStatus(): string
   setPower(status: PowerMode, options: MethodOptions): Promise<void>
   setBrightness(intensity: number, options: MethodOptions): Promise<void>
