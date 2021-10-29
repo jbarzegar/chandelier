@@ -1,12 +1,13 @@
 import { Discover, IDevice, DeviceStatus, Yeelight } from 'yeelight-awesome'
 import {
+  DeviceManagerEventEmitter,
   IDeviceManager,
   SetBrightnessParams,
   SetColorParams,
   SetPowerParams,
-} from '../../domain/DeviceManager'
-import { ColorMode, Light, PowerMode } from '../../domain/Light'
-import { DistributiveOmit } from '../../types'
+} from 'domain/DeviceManager'
+import { ColorMode, Light, PowerMode } from 'domain/Light'
+import { DistributiveOmit } from 'types'
 
 const Color = require('color')
 
@@ -15,9 +16,18 @@ const numToHex = (num: number) =>
 
 const hexToRGB = (hex: string) => Color(hex).object()
 
+type YeelightDeviceManagerOpts = { debug?: boolean; initialLights?: Light[] }
 export class YeelightDeviceManager implements IDeviceManager {
-  private discoverer: Discover = new Discover({ debug: false }, console)
-  private lights: Map<string, Light> = new Map()
+  private lights: Map<string, Light>
+  private discoverer: Discover
+
+  constructor({
+    debug = false,
+    initialLights = [],
+  }: YeelightDeviceManagerOpts = {}) {
+    this.discoverer = new Discover({ debug }, debug ? console : undefined)
+    this.lights = new Map(initialLights.map(x => [x.id, x]))
+  }
 
   async sync(): Promise<Light[]> {
     const devices = (await this.discoverer.start()).filter(Boolean)
@@ -69,7 +79,10 @@ export class YeelightDeviceManager implements IDeviceManager {
   }
 
   private mapLight(device: IDevice): Light {
-    const light = {
+    const light: DistributiveOmit<
+      Light,
+      'colorMode' | 'color' | 'temperature'
+    > = {
       id: device.id,
       name: device.name || 'unknownYeelight',
       host: device.host,
@@ -77,7 +90,8 @@ export class YeelightDeviceManager implements IDeviceManager {
       brightness: device.bright,
       powerStatus:
         device.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
-    } as Light
+      vendor: 'yeelight',
+    }
 
     // note `yeelight-awesome's` ColorMode is not spec compliant so we use raw numbers
     switch (device.mode) {
@@ -94,7 +108,7 @@ export class YeelightDeviceManager implements IDeviceManager {
           temperature: device.ct,
         }
       default:
-        return light
+        return light as Light
     }
   }
 

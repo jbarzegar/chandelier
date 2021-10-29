@@ -39,9 +39,6 @@ export type SetColorParams = {
 
 export type SetBrightnessParams = { id: string; brightness: number }
 
-/**
- * @refer [README](README.md)
- */
 export interface IDeviceManager<T extends Light = Light> {
   /** Attempts to discover new devices, and flag disconnected devices for deletion */
   sync(): Promise<T[]>

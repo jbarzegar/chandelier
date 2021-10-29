@@ -24,6 +24,8 @@ interface BaseLight {
   port: number
   host: string
   name?: string
+  /** used to determine the vendor of the light -- or the adapter used */
+  vendor: string
   powerStatus: PowerMode
   brightness: number
 }
@@ -34,16 +36,3 @@ export type LightColorModes =
   | { colorMode: ColorMode.HUE_SAT; color: HueSatRecord }
 
 export type Light = BaseLight & LightColorModes
-
-export type LightClientDisconnected = Light & {
-  /** return value indicates successful connection */
-  connect(): Promise<LightClientConnected>
-}
-
-export type LightClientConnected = Omit<Light, 'connect'> & {
-  getStatus(): string
-  setPower(status: PowerMode, options: MethodOptions): Promise<void>
-  setBrightness(intensity: number, options: MethodOptions): Promise<void>
-  setColor(color: string, options: MethodOptions): Promise<void>
-  disconnect(): Promise<void>
-}

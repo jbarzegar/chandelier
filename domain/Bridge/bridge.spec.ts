@@ -1,1 +1,0 @@
-describe("Bridge Event Emitter", () => {})
