@@ -3,40 +3,32 @@ import {
   IDevice,
   DeviceStatus,
   Yeelight,
-  Color as LightColor,
+  ColorMode as YeeColorMode,
 } from 'yeelight-awesome'
 import {
-  DeviceManagerEventEmitter,
   IDeviceManager,
   SetBrightnessParams,
   SetColorParams,
   SetPowerParams,
-} from 'domain/DeviceManager'
-import * as Color from 'color'
-import { ColorMode, Light, PowerMode } from 'domain/Light'
-import { DistributiveOmit } from 'types'
+} from '../../domain/DeviceManager'
+// import * as Color from 'color'
+import { ColorMode, Light, PowerMode } from '../../domain/Light'
+import { DistributiveOmit } from '../../types'
 
 export class YeelightDeviceManager implements IDeviceManager {
-  private discoverer: Discover = new Discover({})
+  private discoverer: Discover = new Discover({ debug: true }, console)
   private lights: Map<string, Light> = new Map()
 
   async sync(): Promise<Light[]> {
-    const devices = (await this.discoverer.start()).filter(Boolean)
-    // this.lights = devices.map(_ => this.mapLight(_))
-    for (let x of devices) {
-      this.lights.set(x.id, {
-        id: x.id,
-        colorMode: ColorMode.WHITE,
-        brightness: x.bright,
-        host: x.host,
-        port: x.port,
-        temperature: 555,
-        powerStatus:
-          x.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
-      })
+    const devices = await this.discoverer.start()
+
+    for (const x of devices) {
+      this.lights.set(x.id, this.mapLight(x))
     }
 
     const lights = Array.from(this.lights, ([, v]) => v)
+
+    await this.discoverer.destroy()
 
     return lights
   }
@@ -86,16 +78,33 @@ export class YeelightDeviceManager implements IDeviceManager {
   }
 
   private mapLight(device: IDevice): Light {
-    return {
-      name: device.name || 'unknownYeelight',
-      colorMode: ColorMode.WHITE,
-      temperature: 666,
-      brightness: device.bright,
-      host: device.host,
+    const light = {
       id: device.id,
+      name: device.name || 'unknownYeelight',
+      host: device.host,
       port: device.port,
+      brightness: device.bright,
       powerStatus:
         device.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
+    } as Light
+
+    switch (device.mode) {
+      case YeeColorMode.COLOR:
+        // const c = Color()
+        return {
+          ...light,
+          colorMode: ColorMode.RGB,
+          color: { r: 0, b: 0, g: 0 },
+        }
+      /** NOTE: the color temp is missing from the lib cuz of a bug */
+      case YeeColorMode.WHITE:
+        return {
+          ...light,
+          colorMode: ColorMode.HUE_SAT,
+          color: { hue: device.hue, sat: device.sat },
+        }
+      default:
+        return light
     }
   }
 
