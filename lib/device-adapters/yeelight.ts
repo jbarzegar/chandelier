@@ -1,26 +1,26 @@
-import {
-  Discover,
-  IDevice,
-  DeviceStatus,
-  Yeelight,
-  ColorMode as YeeColorMode,
-} from 'yeelight-awesome'
+import { Discover, IDevice, DeviceStatus, Yeelight } from 'yeelight-awesome'
 import {
   IDeviceManager,
   SetBrightnessParams,
   SetColorParams,
   SetPowerParams,
 } from '../../domain/DeviceManager'
-// import * as Color from 'color'
 import { ColorMode, Light, PowerMode } from '../../domain/Light'
 import { DistributiveOmit } from '../../types'
 
+const Color = require('color')
+
+const numToHex = (num: number) =>
+  `#${(Math.abs(num) & 0x00ffffff).toString(16).padStart(6)}`
+
+const hexToRGB = (hex: string) => Color(hex).object()
+
 export class YeelightDeviceManager implements IDeviceManager {
-  private discoverer: Discover = new Discover({ debug: true }, console)
+  private discoverer: Discover = new Discover({ debug: false }, console)
   private lights: Map<string, Light> = new Map()
 
   async sync(): Promise<Light[]> {
-    const devices = await this.discoverer.start()
+    const devices = (await this.discoverer.start()).filter(Boolean)
 
     for (const x of devices) {
       this.lights.set(x.id, this.mapLight(x))
@@ -43,16 +43,7 @@ export class YeelightDeviceManager implements IDeviceManager {
   async setColor({ id, ...params }: SetColorParams): Promise<Light> {
     const light = await this.connectToLight(id)
 
-    switch (params.colorMode) {
-      case ColorMode.RGB:
-        break
-      case ColorMode.WHITE:
-        break
-      case ColorMode.HUE_SAT:
-        break
-    }
-
-    return this.updateLight(id, params)
+    throw new Error('not implemented')
   }
   setBrightness(params: SetBrightnessParams): Promise<Light> {
     throw new Error('Method not implemented.')
@@ -88,20 +79,19 @@ export class YeelightDeviceManager implements IDeviceManager {
         device.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
     } as Light
 
+    // note `yeelight-awesome's` ColorMode is not spec compliant so we use raw numbers
     switch (device.mode) {
-      case YeeColorMode.COLOR:
-        // const c = Color()
+      case 1: // RGB light
         return {
           ...light,
           colorMode: ColorMode.RGB,
-          color: { r: 0, b: 0, g: 0 },
+          color: hexToRGB(numToHex(device.rgb)),
         }
-      /** NOTE: the color temp is missing from the lib cuz of a bug */
-      case YeeColorMode.WHITE:
+      case 2: // WHITE light
         return {
           ...light,
-          colorMode: ColorMode.HUE_SAT,
-          color: { hue: device.hue, sat: device.sat },
+          colorMode: ColorMode.WHITE,
+          temperature: device.ct,
         }
       default:
         return light
