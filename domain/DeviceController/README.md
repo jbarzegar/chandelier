@@ -1,4 +1,4 @@
-# DeviceManager
+# DeviceController
 
 This module is responsible for managing device state and interactions
 

@@ -1,13 +1,17 @@
-import { Discover, IDevice, DeviceStatus, Yeelight } from 'yeelight-awesome'
 import {
-  DeviceManagerEventEmitter,
-  IDeviceManager,
+  Color as YeColor,
+  Discover,
+  IDevice,
+  DeviceStatus,
+  Yeelight,
+} from 'yeelight-awesome'
+import {
+  IDeviceController,
   SetBrightnessParams,
   SetColorParams,
   SetPowerParams,
-} from 'domain/DeviceManager'
+} from 'domain/DeviceController'
 import { ColorMode, Light, PowerMode } from 'domain/Light'
-import { DistributiveOmit } from 'types'
 
 const Color = require('color')
 
@@ -16,15 +20,15 @@ const numToHex = (num: number) =>
 
 const hexToRGB = (hex: string) => Color(hex).object()
 
-type YeelightDeviceManagerOpts = { debug?: boolean; initialLights?: Light[] }
-export class YeelightDeviceManager implements IDeviceManager {
+type YeelightControllerOpts = { debug?: boolean; initialLights?: Light[] }
+export class YeelightController implements IDeviceController {
   private lights: Map<string, Light>
   private discoverer: Discover
 
   constructor({
     debug = false,
     initialLights = [],
-  }: YeelightDeviceManagerOpts = {}) {
+  }: YeelightControllerOpts = {}) {
     this.discoverer = new Discover({ debug }, debug ? console : undefined)
     this.lights = new Map(initialLights.map(x => [x.id, x]))
   }
@@ -43,21 +47,49 @@ export class YeelightDeviceManager implements IDeviceManager {
     return lights
   }
 
-  async setPower(params: SetPowerParams): Promise<Light> {
-    const light = await this.connectToLight(params.id)
+  async setPower(p: SetPowerParams): Promise<Light> {
+    const light = await this.connectToLight(p.id)
 
-    await light.setPower(params.power === PowerMode.ON, params.transition, 1000)
+    await light.setPower(p.power === PowerMode.ON, p.transition, 1000)
+    await light.disconnect()
 
-    return this.updateLight(params.id, { powerStatus: params.power })
+    return this.updateLight(p.id, { powerStatus: p.power })
   }
   async setColor({ id, ...params }: SetColorParams): Promise<Light> {
     const light = await this.connectToLight(id)
 
-    throw new Error('not implemented')
+    const update = async (x: Partial<Light>) => {
+      await light.disconnect()
+      return this.updateLight(id, x)
+    }
+
+    switch (params.colorMode) {
+      case ColorMode.RGB:
+        const { r, g, b } = params.color
+        await light.setRGB(new YeColor(r, g, b), 'smooth')
+
+        return await update({
+          colorMode: ColorMode.RGB,
+          color: params.color,
+        })
+      case ColorMode.WHITE:
+        const { temperature } = params
+        await light.setCtAbx(temperature, 'smooth')
+
+        return await update({ colorMode: ColorMode.WHITE, temperature })
+      default:
+        throw new Error(`unhandled mode ${params.colorMode}`)
+    }
   }
-  setBrightness(params: SetBrightnessParams): Promise<Light> {
-    throw new Error('Method not implemented.')
+  async setBrightness(p: SetBrightnessParams): Promise<Light> {
+    const light = await this.connectToLight(p.id)
+
+    await light.setBright(p.brightness, 'smooth').then(light.disconnect)
+    await light.disconnect()
+
+    return this.updateLight(p.id, { brightness: p.brightness })
   }
+
   cleanup() {
     return this.discoverer.destroy()
   }
@@ -79,10 +111,7 @@ export class YeelightDeviceManager implements IDeviceManager {
   }
 
   private mapLight(device: IDevice): Light {
-    const light: DistributiveOmit<
-      Light,
-      'colorMode' | 'color' | 'temperature'
-    > = {
+    const light = {
       id: device.id,
       name: device.name || 'unknownYeelight',
       host: device.host,
@@ -91,7 +120,7 @@ export class YeelightDeviceManager implements IDeviceManager {
       powerStatus:
         device.status === DeviceStatus.ON ? PowerMode.ON : PowerMode.OFF,
       vendor: 'yeelight',
-    }
+    } as Light
 
     // note `yeelight-awesome's` ColorMode is not spec compliant so we use raw numbers
     switch (device.mode) {
@@ -108,14 +137,12 @@ export class YeelightDeviceManager implements IDeviceManager {
           temperature: device.ct,
         }
       default:
-        return light as Light
+        // TODO: attempt to figure out the type???
+        throw new Error(`Unhandled device mode ${device.mode}`)
     }
   }
 
-  private updateLight(
-    id: string,
-    p: Partial<DistributiveOmit<Record<keyof Light, Light[keyof Light]>, 'id'>>
-  ): Light {
+  private updateLight(id: string, p: Partial<Light>): Light {
     if (!this.lights.has(id))
       throw new Error(`could not find light with id ${id}`)
 
