@@ -10,8 +10,8 @@ import { Light } from 'domain/Light'
 export class ComposedDeviceManager implements IDeviceController {
   constructor(private adapters: IDeviceController[]) {}
 
-  async sync(): Promise<Light[]> {
-    const all = (await Promise.all(this.adapters.map(x => x.sync()))).flat()
+  async discover(): Promise<Light[]> {
+    const all = (await Promise.all(this.adapters.map(x => x.discover()))).flat()
     return all.flat()
   }
 

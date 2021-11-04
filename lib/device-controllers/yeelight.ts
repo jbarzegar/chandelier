@@ -33,7 +33,7 @@ export class YeelightController implements IDeviceController {
     this.lights = new Map(initialLights.map(x => [x.id, x]))
   }
 
-  async sync(): Promise<Light[]> {
+  async discover(): Promise<Light[]> {
     const devices = (await this.discoverer.start()).filter(Boolean)
 
     for (const x of devices) {

@@ -37,7 +37,7 @@ export type SetBrightnessParams = { id: string; brightness: number }
 
 export interface IDeviceController<T extends Light = Light> {
   /** Attempts to discover new devices, and flag disconnected devices for deletion */
-  sync(): Promise<T[]>
+  discover(): Promise<T[]>
   setPower(params: SetPowerParams): Promise<T>
   setColor(params: SetColorParams): Promise<T>
   setBrightness(params: SetBrightnessParams): Promise<T>

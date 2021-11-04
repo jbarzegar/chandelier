@@ -1,11 +1,13 @@
 import { DeviceGateway } from '.'
 import { MockDeviceController } from 'lib/device-controllers/mock'
+import { MockBridgeAdapter } from 'lib/bridge/bindings/mock-bridge'
 
 describe('Device Gateway', () => {
   const testSync = () => {
     const controller = new MockDeviceController()
+    const bridge = new MockBridgeAdapter()
+    const gateway = new DeviceGateway(controller, bridge)
 
-    const gateway = new DeviceGateway(controller)
     return new Promise((resolve, reject) => {
       gateway
         .on('deviceController.syncCompleted', resolve)

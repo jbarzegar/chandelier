@@ -7,7 +7,7 @@ import {
 import { Light, ColorMode, PowerMode } from 'domain/Light'
 
 export class MockDeviceController implements IDeviceController {
-  async sync(): Promise<Light[]> {
+  async discover(): Promise<Light[]> {
     return new Array(2).fill(0).map((x, i) => ({
       id: i.toString(),
       brightness: x,

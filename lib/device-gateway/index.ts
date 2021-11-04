@@ -1,8 +1,23 @@
 import { BaseDeviceGateway } from 'domain/DeviceGateway'
 import { IDeviceController } from 'domain/DeviceController'
+import { IBridgeAdapter } from 'domain/Bridge'
+import { Device } from 'domain/Device'
+import { Light } from 'domain/Light'
+import { v4 as uuid } from 'uuid'
+
+const mapLightToDevice = (light: Light): Device =>
+  ({
+    ...light,
+    id: uuid(),
+    hwId: light.id,
+    type: 'light',
+  } as Device)
 
 export class DeviceGateway extends BaseDeviceGateway {
-  constructor(private adapter: IDeviceController) {
+  constructor(
+    private controller: IDeviceController,
+    private bridge: IBridgeAdapter
+  ) {
     super()
 
     this.on('deviceController.sync', this.onSync)
@@ -12,9 +27,13 @@ export class DeviceGateway extends BaseDeviceGateway {
     this.emit('deviceController.syncing')
 
     try {
-      const devices = await this.adapter.sync()
+      const lights = await this.controller.discover()
 
-      this.emit('deviceController.syncCompleted', devices)
+      const devices = await Promise.all(
+        lights.map(mapLightToDevice).map(x => this.bridge.attachDevice(x))
+      )
+
+      this.emit('deviceController.syncCompleted', lights)
     } catch (e) {
       this.emit('deviceController.syncError', e)
     }
