@@ -1,0 +1,45 @@
+version: '3'
+
+
+services:
+  redis:
+    image: redis
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - cache:/data
+    ports:
+      - 6379:6379
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+    - REDIS_HOSTS=local:redis:6379
+    ports:
+    - "8081:8081"
+
+  sync:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    network_mode: "host"
+
+  habridge:
+    image: lscr.io/linuxserver/habridge:latest
+    container_name: habridge
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - config:/config
+    ports:
+      - 8080:8080
+      - 50000:50000
+
+volumes:
+  config:
+    driver: local
+  cache:
+    driver: local
