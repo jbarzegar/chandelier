@@ -10,6 +10,8 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/fatih/structs"
@@ -125,54 +127,113 @@ func syncCache(l Light) error {
 	return nil
 }
 
-// Sync yeelights with ha-bridge
-func syncBridge(l Light) error {
-	payload := AddDeviceRequest{
-		Name:    l.Name,
-		MapId:   l.HwID,
-		MapType: fmt.Sprintf("yeelight::%v", l.Name),
+var bridgeApiURL = fmt.Sprintf("http://localhost:%d/api", 8080)
+
+func addDeviceToBridge(payload AddDeviceRequest) ([]map[string]any, error) {
+	slog.Info("Attempting to add item to habridg")
+
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		slog.Error("Error creating json payload", err)
 	}
 
+	body := bytes.NewBuffer(jsonPayload)
+
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	u, _ := url.JoinPath(bridgeApiURL, "/devices")
+	// Adding device
+	resp, err := client.Post(u, "application/json", body)
+	if err != err {
+		slog.Error("Error adding a device", err)
+		return nil, err
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if err != err {
+		slog.Error("Error reading body", err)
+		return nil, err
+	}
+
+	if resp.StatusCode > 299 {
+		slog.Error(fmt.Sprintf("Create device failed with status: %v \n body: %s", resp.StatusCode, string(respBody)))
+		return nil, errors.New("create device failed")
+	}
+
+	var response []map[string]any
+
+	err = json.Unmarshal(respBody, &response)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+var ErrorNoLightFound = errors.New("no light found")
+
+func hasDeviceInBridge(id int) (bool, error) {
+	slog.Info(fmt.Sprintf("Fetching light with ID: %s", strconv.Itoa(id)))
+	u, _ := url.JoinPath(bridgeApiURL, "/devices/", strconv.Itoa(id))
+	fmt.Println(u)
+
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := http.NewRequest("GET", u, nil)
+
+	if err != nil {
+		return false, err
+	}
+
+	// resp, err := client.Get(u)
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return false, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode > 299 {
+		log.Fatal(fmt.Printf("getDevice failed with status code: %v and \n body: %v", resp.StatusCode, string(body)))
+	}
+
+	if resp.StatusCode == 404 {
+		return false, ErrorNoLightFound
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// Sync yeelights with ha-bridge
+func syncBridge(l Light) error {
 	result, err := cache.Redis.HGet(context.TODO(), l.HwID, "bridgeId").Result()
 	if err != nil {
 		return err
 	}
 
 	if result == "" {
-
-		slog.Info("Attempting to add item to habridg")
-		reqUrl := fmt.Sprintf("http://localhost:%d/api/devices", 8080)
-		jsonPayload, err := json.Marshal(payload)
-		if err != nil {
-			slog.Error("Error creating json payload", err)
+		payload := AddDeviceRequest{
+			Name:    l.Name,
+			MapId:   l.HwID,
+			MapType: fmt.Sprintf("yeelight::%v", l.Name),
 		}
-
-		body := bytes.NewBuffer(jsonPayload)
-
-		client := http.Client{
-			Timeout: 30 * time.Second,
-		}
-
-		resp, err := client.Post(reqUrl, "application/json", body)
-		if err != err {
-			slog.Error("Error adding a device", err)
-			return err
-		}
-
-		defer resp.Body.Close()
-
-		respBody, err := io.ReadAll(resp.Body)
-
-		if err != err {
-			slog.Error("Error reading body", err)
-			return err
-		}
-
-		var response []map[string]any
-
-		err = json.Unmarshal(respBody, &response)
+		response, err := addDeviceToBridge(payload)
 
 		if err != nil {
+			slog.Error("Error adding light to bridge")
 			return err
 		}
 
@@ -188,6 +249,21 @@ func syncBridge(l Light) error {
 	} else {
 		// TODO VALIDATE THAT THE Light still exists in the bridge
 		// GET by id and if it's not there resync it
+		fmt.Println(result)
+		id, err := strconv.Atoi(result)
+		if err != nil {
+			slog.Error("Could not convert bridgeId into int")
+			return err
+		}
+
+		_, err = hasDeviceInBridge(id)
+
+		if err == ErrorNoLightFound {
+			slog.Error("Failed to get light in bridge")
+			cache.Redis.HDel(context.TODO(), l.HwID, "bridgeId").Result()
+			return err
+		}
+
 	}
 
 	return nil
@@ -207,10 +283,6 @@ func (s *YeelightScanner) Sync(lights []Light) error {
 		}
 
 	}
-
-	// If they are in redis but not habridge sync em up
-
-	// ????
 
 	return nil
 }
