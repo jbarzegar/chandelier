@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -32,24 +33,25 @@ func main() {
 
 	app := fiber.New()
 
-	app.Get("/:mapId", func(c *fiber.Ctx) error {
-		var light *scanner.Light
-		for _, d := range devices {
-			if d.HwID == c.Params("mapId") {
-				light = &d
-				break
-			}
-		}
+	// app.Get("/:mapId", func(c *fiber.Ctx) error {
+	// 	var light *scanner.Light
+	// 	for _, d := range devices {
+	// 		if d.HwID == c.Params("mapId") {
+	// 			light = &d
+	// 			break
+	// 		}
+	// 	}
 
-		if light == nil {
-			return c.SendStatus(404)
-		}
+	// 	if light == nil {
+	// 		return c.SendStatus(404)
+	// 	}
 
-		return c.SendString("Lol has the light")
-	})
+	// 	return c.SendString("Lol has the light")
+	// })
 
 	// [{ name: "<server-url>/:mapId?action=<action>" }]
-	app.Put("/:mapId", func(c *fiber.Ctx) error {
+	app.Get("/:mapId", func(c *fiber.Ctx) error {
+		fmt.Println("Map id")
 		if err != nil {
 			log.Fatalln(err)
 		}

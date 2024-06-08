@@ -29,7 +29,9 @@ import (
 //  { name: "${location}/"}
 
 type XURL struct {
-	Name string `json:"name"`
+	Item        string `json:"item"`
+	HttpVerb    string `json:"httpVerb"`
+	ContentType string `json:"contentType"`
 }
 type AddDeviceRequest struct {
 	Name    string `json:"name"`
@@ -49,6 +51,11 @@ func (s YeelightScanner) Discover(ctx context.Context) ([]Light, error) {
 	devices, err := yeelight.Discovery(ctx)
 	ctx.Done()
 
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+    slog.Error("Oh no")
+		return []Light{}, err
+	}
+
 	if len(devices) == 0 {
 		slog.Warn("No devices")
 		return []Light{}, nil
@@ -56,9 +63,7 @@ func (s YeelightScanner) Discover(ctx context.Context) ([]Light, error) {
 
 	slog.Info(fmt.Sprintf("Found %v devices", len(devices)))
 
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-		return []Light{}, err
-	}
+
 
 	var result = LightResult{
 		Devices: []Light{},
@@ -225,10 +230,25 @@ func syncBridge(l Light) error {
 	}
 
 	if result == "" {
+		onUrlRaw := XURL{
+			HttpVerb: "GET",
+			Item:     fmt.Sprintf("http://localhost:5000/%s?action=\"ON\"", l.HwID),
+		}
+		offUrlRaw := XURL{
+			HttpVerb: "GET",
+			Item:     fmt.Sprintf("http://localhost:5000/%s?action=\"OFF\"", l.HwID),
+		}
+		// var onUrl, offUrl string
+
+		onUrl, _ := json.Marshal([]XURL{onUrlRaw})
+		offUrl, _ := json.Marshal([]XURL{offUrlRaw})
+
 		payload := AddDeviceRequest{
 			Name:    l.Name,
 			MapId:   l.HwID,
 			MapType: fmt.Sprintf("yeelight::%v", l.Name),
+			OnURL:   string(onUrl),
+			OffUrl:  string(offUrl),
 		}
 		response, err := addDeviceToBridge(payload)
 
