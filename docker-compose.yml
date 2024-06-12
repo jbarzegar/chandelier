@@ -19,12 +19,12 @@ services:
     ports:
     - "8081:8081"
 
-  sync:
-    build:
-      dockerfile: Dockerfile
-      context: .
-    network_mode: "host"
-
+  # sync:
+  #   build:
+  #     dockerfile: Dockerfile
+  #     context: .
+  #   network_mode: "host"
+  #
   habridge:
     image: linuxserver/habridge
     container_name: habridge

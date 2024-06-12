@@ -19,14 +19,12 @@ func main() {
 	s := scanner.YeelightScanner{}
 
 	devices, err := s.Discover(ctx)
-
 	if err != nil {
 		log.Fatalf("Error running discovery", err)
 	}
 
 	// Run a sync against lights
 	err = s.Sync(devices)
-
 	if err != nil {
 		log.Fatalf("Error running sync", err)
 	}
@@ -51,7 +49,7 @@ func main() {
 
 	// [{ name: "<server-url>/:mapId?action=<action>" }]
 	app.Get("/:mapId", func(c *fiber.Ctx) error {
-		fmt.Println("Map id")
+		fmt.Println("Map id", c.Params("mapId"))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -72,14 +70,16 @@ func main() {
 
 		var power bool
 
-		switch strings.ToUpper(c.Query("action")) {
+		q := strings.ToUpper(c.Query("action", "OFF"))
+		fmt.Println(q)
+		switch q {
 		case "OFF":
 			power = false
 		case "ON":
 			power = true
-		default:
-			return c.SendStatus(422)
 		}
+
+		fmt.Println("power", power)
 
 		// body.Action
 		y.Power(context.TODO(), power, yeelight.PowerModeDefault, yeelight.EffectSmooth, 500*time.Millisecond)
@@ -88,5 +88,4 @@ func main() {
 	})
 
 	app.Listen(":5000")
-
 }
