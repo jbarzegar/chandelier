@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fatih/structs"
@@ -36,23 +37,24 @@ type Light struct {
 	// IP address
 	Location string `json:"location"`
 }
-
 type XURL struct {
 	Item        string `json:"item"`
 	HttpVerb    string `json:"httpVerb"`
+	Type        string `json:"type"`
 	ContentType string `json:"contentType"`
 }
 
 type AddDeviceRequest struct {
-	Name    string `json:"name"`
-	MapId   string `json:"mapId"`
-	MapType string `json:"mapType"`
-	// Shape of onURL JSON
-	// { name: "${location}/"}
+	Name       string `json:"name"`
+	MapId      string `json:"mapId"`
+	MapType    string `json:"mapType"`
+	DeviceType string `json:"deviceType"`
+	// Payload sent to server when "On" action is performed in ha-bridge
 	OnURL string `json:"onUrl"`
-	// Shape of offURL JSON
-	// { name: "${location}/"}
+	// Payload sent to server when "Off" action is performed in ha-bridge
 	OffUrl string `json:"offUrl"`
+	// Payload sent to server when "Dim" action is performed in ha-bridge
+	DimUrl string `json:"dimUrl"`
 }
 
 type Scanner interface {
@@ -191,6 +193,46 @@ func hasDeviceInBridge(id int) (bool, error) {
 	return true, nil
 }
 
+const apiURL = "http://localhost:5000"
+
+func constructXUrlJson(hardwareID string, args map[string]string) ([]byte, error) {
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return []byte{}, err
+	}
+	q := u.Query()
+
+	u = u.JoinPath(hardwareID)
+
+	for k, v := range args {
+		q.Set(k, v)
+	}
+
+	// This section is lame,
+	// because I can't use q.Encode() as it breaks ha-bridge's replacement
+	// format (${thing})
+	// so query params are mapped manually
+	query := []string{}
+	for k, x := range q {
+		query = append(query, fmt.Sprintf("%s=%s", k, x[0]))
+	}
+	u.RawQuery = strings.Join(query, "&")
+
+	xUrl := XURL{
+		HttpVerb: "GET",
+		Type:     "httpDevice",
+		Item:     u.String(),
+	}
+
+	j, err := json.Marshal([]XURL{xUrl})
+	if err != nil {
+		slog.Error("cannot marshal XURL json", err)
+		return j, nil
+	}
+
+	return j, nil
+}
+
 // Sync lights with ha-bridge
 func syncBridge(l Light) error {
 	result, err := cache.Redis.HGet(context.TODO(), l.HwID, "bridgeId").Result()
@@ -199,25 +241,21 @@ func syncBridge(l Light) error {
 	}
 
 	if result == "" {
-		onUrlRaw := XURL{
-			HttpVerb: "GET",
-			Item:     fmt.Sprintf("http://localhost:5000/%s?action=ON", l.HwID),
-		}
-		offUrlRaw := XURL{
-			HttpVerb: "GET",
-			Item:     fmt.Sprintf("http://localhost:5000/%s?action=OFF", l.HwID),
-		}
-		// var onUrl, offUrl string
-
-		onUrl, _ := json.Marshal([]XURL{onUrlRaw})
-		offUrl, _ := json.Marshal([]XURL{offUrlRaw})
+		onUrl, _ := constructXUrlJson(l.HwID, map[string]string{"action": "ON"})
+		offUrl, _ := constructXUrlJson(l.HwID, map[string]string{"action": "OFF"})
+		dimUrl, _ := constructXUrlJson(l.HwID, map[string]string{
+			"action":     "DIM",
+			"brightness": "${intensity.percent}",
+		})
 
 		payload := AddDeviceRequest{
-			Name:    l.Name,
-			MapId:   l.HwID,
-			MapType: fmt.Sprintf("yeelight::%v", l.Name),
-			OnURL:   string(onUrl),
-			OffUrl:  string(offUrl),
+			Name:       l.Name,
+			MapId:      l.HwID,
+			MapType:    fmt.Sprintf("yeelight::%v", l.Name),
+			DeviceType: "switch",
+			OnURL:      string(onUrl),
+			OffUrl:     string(offUrl),
+			DimUrl:     string(dimUrl),
 		}
 		response, err := addDeviceToBridge(payload)
 		if err != nil {
